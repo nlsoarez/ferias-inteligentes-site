@@ -1,6 +1,9 @@
 name: Manter Supabase ativo
 
 on:
+  push:
+    paths:
+      - ".github/workflows/keep-supabase-active.yml"
   schedule:
     # Gera atividade de banco três vezes por dia para evitar pausa por inatividade.
     - cron: "17 */8 * * *"
