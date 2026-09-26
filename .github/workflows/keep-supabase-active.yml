@@ -1,0 +1,39 @@
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    # Gera atividade de banco três vezes por dia para evitar pausa por inatividade.
+    - cron: "17 */8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Consultar o banco
+        env:
+          SUPABASE_URL: https://xkgcjovfedwxsytjqaci.supabase.co
+          # Chave publicável: por definição, pode ficar em aplicações cliente públicas.
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_kKu_IjYl67Fqxt5ycQjgWA_tnbV0bjX
+        run: |
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error --max-time 30 \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --header "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1")"
+
+          # 2xx = consulta permitida. 401/42501 = a consulta chegou ao Postgres,
+          # mas foi bloqueada corretamente pela política de acesso anônimo.
+          if [[ "$status" =~ ^2 ]] || { [[ "$status" == "401" ]] && grep -q '42501' "$response_file"; }; then
+            echo "Supabase respondeu e o banco recebeu a consulta (HTTP $status)."
+            exit 0
+          fi
+
+          echo "Falha ao consultar o Supabase (HTTP $status)."
+          sed -E 's/(token|key|password)[^,}]*/\1:[REDACTED]/gi' "$response_file"
+          exit 1
